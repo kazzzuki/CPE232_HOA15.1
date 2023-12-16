@@ -1,0 +1,29 @@
+---
+- hosts: all
+  become: true
+  tasks:
+
+  - name: Update
+    apt:
+      update_cache: yes
+      state: present
+
+- hosts: Neutron_Controller_Node
+  become: true
+  roles:
+    - Neutron_Controller_Node
+
+- hosts: Neutron_Compute_Node
+  become: true
+  roles:
+    - Neutron_Compute_Node
+
+- hosts: Horizon
+  become: true
+  roles:
+    - Horizon
+
+- hosts: Cinder_Controller_Node
+  become: true
+  roles:
+    - Cinder_Controller_Node

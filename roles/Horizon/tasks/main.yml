@@ -1,0 +1,34 @@
+
+- name: Install component
+  apt:
+    name: openstack-dashboard
+    state: present
+
+- name: Edit /etc/openstack-dashboard/local_settings.py file
+  lineinfile:
+    path: /etc/openstack-dashboard/local_settings.py
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^OPENSTACK_HOST = ', line: 'OPENSTACK_HOST = "controller"' }
+    - { regexp: '^ALLOWED_HOSTS = ', line: 'ALLOWED_HOSTS = ["one.example.com", "two.example.com"]' }
+    - { regexp: '^SESSION_ENGINE = ', line: 'SESSION_ENGINE = "django.contrib.sessions.backends.cache"' }
+    - { regexp: '^CACHES = ', line: 'CACHES = {"default": {"BACKEND": "django.core.cache.backends.memcached.MemcachedCache", "LOCATION": "controller:11211"}}' }
+    - { regexp: '^OPENSTACK_KEYSTONE_URL = ', line: 'OPENSTACK_KEYSTONE_URL = "http://%s/identity/v3" % OPENSTACK_HOST' }
+    - { regexp: '^OPENSTACK_KEYSTONE_MULTIDOMAIN_SUPPORT = ', line: 'OPENSTACK_KEYSTONE_MULTIDOMAIN_SUPPORT = True' }
+    - { regexp: '^OPENSTACK_API_VERSIONS = ', line: 'OPENSTACK_API_VERSIONS = {"identity": 3, "image": 2, "volume": 3}' }
+    - { regexp: '^OPENSTACK_KEYSTONE_DEFAULT_DOMAIN = ', line: 'OPENSTACK_KEYSTONE_DEFAULT_DOMAIN = "Default"' }
+    - { regexp: '^OPENSTACK_KEYSTONE_DEFAULT_ROLE = ', line: 'OPENSTACK_KEYSTONE_DEFAULT_ROLE = "user"' }
+    - { regexp: '^OPENSTACK_NEUTRON_NETWORK = ', line: 'OPENSTACK_NEUTRON_NETWORK = {"enable_router": False, "enable_quotas": False, "enable_ipv6": False, "enable_distributed_router": False, "enable_ha_router": False, "enable_fip_topology_check": False}' }
+    - { regexp: '^TIME_ZONE = ', line: 'TIME_ZONE = "UTC"' }
+
+- name: Edit /etc/apache2/conf-available/openstack-dashboard.conf file
+  lineinfile:
+    path: /etc/apache2/conf-available/openstack-dashboard.conf
+    line: 'WSGIApplicationGroup %{GLOBAL}'
+    insertafter: '^<VirtualHost'
+
+- name: Reload apache2
+  systemd:
+    name: apache2.service
+    state: reloaded

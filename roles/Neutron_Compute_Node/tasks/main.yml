@@ -1,0 +1,63 @@
+
+- name: Install components
+  apt:
+    name: neutron-linuxbridge-agent
+    state: present
+
+- name: Edit /etc/neutron/neutron.conf file
+  lineinfile:
+    path: /etc/neutron/neutron.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^connection =', line: '# connection =' }
+    - { regexp: '^transport_url =', line: 'transport_url = rabbit://openstack:RABBIT_PASS@controller' }
+    - { regexp: '^auth_strategy =', line: 'auth_strategy = keystone' }
+    - { regexp: '^www_authenticate_uri =', line: 'www_authenticate_uri = http://controller:5000' }
+    - { regexp: '^auth_url =', line: 'auth_url = http://controller:5000' }
+    - { regexp: '^memcached_servers =', line: 'memcached_servers = controller:11211' }
+    - { regexp: '^auth_type =', line: 'auth_type = password' }
+    - { regexp: '^project_domain_name =', line: 'project_domain_name = default' }
+    - { regexp: '^user_domain_name =', line: 'user_domain_name = default' }
+    - { regexp: '^project_name =', line: 'project_name = service' }
+    - { regexp: '^username =', line: 'username = neutron' }
+    - { regexp: '^password =', line: 'password = NEUTRON_PASS' }
+    - { regexp: '^lock_path =', line: 'lock_path = /var/lib/neutron/tmp' }
+
+- name: Edit /etc/neutron/plugins/ml2/linuxbridge_agent.ini file
+  lineinfile:
+    path: /etc/neutron/plugins/ml2/linuxbridge_agent.ini
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^physical_interface_mappings =', line: 'physical_interface_mappings = provider:PROVIDER_INTERFACE_NAME' }
+    - { regexp: '^enable_vxlan =', line: 'enable_vxlan = false' }
+    - { regexp: '^enable_security_group =', line: 'enable_security_group = true' }
+    - { regexp: '^firewall_driver =', line: 'firewall_driver = neutron.agent.linux.iptables_firewall.IptablesFirewallDriver' }
+    - { regexp: '^net.bridge.bridge-nf-call-iptables =', line: 'net.bridge.bridge-nf-call-iptables = 1' }
+    - { regexp: '^net.bridge.bridge-nf-call-ip6tables =', line: 'net.bridge.bridge-nf-call-ip6tables = 1' }
+
+- name: Edit /etc/nova/nova.conf file
+  lineinfile:
+    path: /etc/nova/nova.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^auth_url =', line: 'auth_url = http://controller:5000' }
+    - { regexp: '^auth_type =', line: 'auth_type = password' }
+    - { regexp: '^project_domain_name =', line: 'project_domain_name = default' }
+    - { regexp: '^user_domain_name =', line: 'user_domain_name = default' }
+    - { regexp: '^region_name =', line: 'region_name = RegionOne' }
+    - { regexp: '^project_name =', line: 'project_name = service' }
+    - { regexp: '^username =', line: 'username = neutron' }
+    - { regexp: '^password =', line: 'password = NEUTRON_PASS' }
+
+- name: Restart compute service
+  service:
+    name: nova-compute
+    state: restarted
+
+- name: Restart linux bridge agent
+  service:
+    name: neutron-linuxbridge-agent
+    state: restarted

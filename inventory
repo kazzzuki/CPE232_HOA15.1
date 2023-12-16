@@ -1,0 +1,12 @@
+
+[Neutron_Controller_Node]
+192.168.56.131	ansible_connection=ssh
+
+[Neutron_Compute_Node]
+192.168.56.131  ansible_connection=ssh
+
+[Horizon]
+192.168.56.131	ansible_connection=ssh
+
+[Cinder_Controller_Node]
+192.168.56.131	ansible_connection=ssh

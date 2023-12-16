@@ -1,0 +1,113 @@
+
+- name: Create Cinder database
+  mysql_db:
+    name: cinder
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Grant privileges on Cinder database
+  mysql_user:
+    name: cinder
+    password: CINDER_PASS
+    priv: "cinder.*:ALL"
+    state: present
+    host: "{{ item }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop:
+    - localhost
+    - "%"
+
+- name: Source the admin credentials
+  shell: ". /home/kazuki/admin-openrc"
+
+- name: Create Cinder user
+  command: " openstack user create --domain default --password-prompt cinder "
+  environment:
+    OS_USERNAME: admin
+    OS_PASSWORD: CINDER_PASS
+    OS_PROJECT_NAME: admin
+    OS_AUTH_URL: http://192.168.56.131/v3
+  async: 3600
+  poll: 0
+
+- name: Add admin role to cinder user
+  command: "openstack role add --project service --user cinder admin"
+  environment:
+    OS_USERNAME: admin
+    OS_PASSWORD: CINDER_PASS
+    OS_PROJECT_NAME: admin
+    OS_AUTH_URL: http://192.168.56.131/v3
+  async: 3600
+  poll: 0
+
+- name: Create cinderv3 service entity
+  command: ' openstack service create --name cinderv3 --description "OpenStack Block Storage" volumev3 '
+  async: 3600
+  poll: 0
+
+- name: Create Block Storage service API endpoints (public)
+  command: ' openstack endpoint create --region RegionOne volumev3 public http://controller:8776/v3/%\(project_id\)s '
+  async: 3600
+  poll: 0
+
+- name: Create Block Storage service API endpoints (internal)
+  command: ' openstack endpoint create --region RegionOne network internal http://controller:8776/v3/%\(project_id\)s '
+  async: 3600
+  poll: 0
+
+- name: Create Block Storage service API endpoints (admin)
+  command: ' openstack endpoint create --region RegionOne network admin http://controller:8776/v3/%\(project_id\)s '
+  async: 3600
+  poll: 0
+
+- name: Install packages
+  apt:
+    name:
+      - cinder-api
+      - cinder-scheduler
+    state: present
+
+- name: Edit cinder.conf file
+  ansible.builtin.lineinfile:
+    path: /etc/cinder/cinder.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^connection =', line: 'connection = mysql+pymysql://cinder:CINDER_DBPASS@controller/cinder' }
+    - { regexp: '^transport_url =', line: 'transport_url = rabbit://openstack:RABBIT_PASS@controller' }
+    - { regexp: '^auth_strategy =', line: 'auth_strategy = keystone' }
+    - { regexp: '^www_authenticate_uri =', line: 'www_authenticate_uri = http://controller:5000' }
+    - { regexp: '^auth_url =', line: 'auth_url = http://controller:5000' }
+    - { regexp: '^memcached_servers =', line: 'memcached_servers = controller:11211' }
+    - { regexp: '^project_domain_name =', line: 'project_domain_name = default' }
+    - { regexp: '^user_domain_name =', line: 'user_domain_name = default' }
+    - { regexp: '^project_name =', line: 'project_name = service' }
+    - { regexp: '^username =', line: 'username = cinder' }
+    - { regexp: '^password =', line: 'password = CINDER_PASS' }
+    - { regexp: '^my_ip =', line: 'my_ip = 10.0.0.11' }
+    - { regexp: '^lock_path =', line: 'lock_path = /var/lib/cinder/tmp' }
+
+- name: Populate the Neutron database
+  command: ' su -s /bin/sh -c "cinder-manage db sync" cinder '
+  async: 3600
+  poll: 0
+
+- name: Edit /etc/nova/nova.conf file
+  lineinfile:
+    path: /etc/nova/nova.conf
+    insertafter: '^#?\[DEFAULT\]'
+    line: 'os_region_name = RegionOne'
+
+- name: Restart compute service
+  service:
+    name: nova-api
+    state: restarted
+
+- name: Restart block storage services
+  service:
+    name: cinder-scheduler
+    state: restarted
+
+- name: Restart block storage services
+  service:
+    name: apache2
+    state: restarted
